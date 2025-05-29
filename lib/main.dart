@@ -2,10 +2,17 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
+
+  final dir = await getApplicationDocumentsDirectory();
+  await Hive.initFlutter(dir.path);
+  await Hive.openBox('birthdays');
 
   runApp(MaterialApp(home: FortuneApp()));
 }
@@ -24,9 +31,13 @@ class _FortuneAppState extends State<FortuneApp> {
   void _submit() async {
     if (_formKey.currentState!.validate()) {
       String name = _nameController.text;
-      String birth = _birthController.text;
+      String? birth = searchBirthday(name);
+      if (birth == null) {
+        birth = _birthController.text;
+        saveBirthday(name, birth);
+      }
       setState(() {
-        _result = "이름: $name\n생년월일: $birth\n운세를 불러오는 중...";
+        _result = "운세를 불러오는 중...";
       });
       String fortune = await fetchFortune(name, birth);
       setState(() {
@@ -99,4 +110,14 @@ Future<String> fetchFortune(String name, String birth) async {
   } catch (e) {
     return "네트워크 오류: $e";
   }
+}
+
+void saveBirthday(String name, String birth) {
+  final box = Hive.box('birthdays');
+  box.put(name, birth);
+}
+
+String? searchBirthday(String name) {
+  final box = Hive.box('birthdays');
+  return box.get(name);
 }
